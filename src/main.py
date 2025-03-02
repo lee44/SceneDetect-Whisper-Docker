@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 import os
 import queue
 import threading
@@ -8,7 +9,9 @@ from posixpath import splitext
 from queue import Queue
 
 import schedule
+
 from scene_detect import SceneDetect
+from subtitle import SubtitleGenerator
 
 logger = logging.getLogger("scene_detect_logger")
 logger.propagate = False
@@ -51,6 +54,9 @@ def main():
     for actor in actors:
         actor_path = os.path.join(VIDEO_CONTAINER_PATH, actor)
         scene_detect = SceneDetect(actor, actor_path)
+        subtitle = SubtitleGenerator(actor, actor_path)
+
+        lock = multiprocessing.Manager().Lock()
 
         if os.path.exists(actor_path):
             scene_path = os.path.join(VIDEO_CONTAINER_PATH, actor, "scenes")
@@ -74,6 +80,9 @@ def main():
 
                     except Exception as e:
                         logger.error(f"Error splitting video: {e}")
+
+            subtitle.mp_extract_audio(1, lock)
+            subtitle.mp_generate_subtitle(1)
 
         else:
             logger.info(f"Actor path {actor_path} does not exist.")
