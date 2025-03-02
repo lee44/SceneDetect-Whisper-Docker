@@ -23,14 +23,14 @@ logger.propagate = False
 
 
 class SubtitleGenerator:
-    def __init__(self, actor, actor_path):
-        self.actor = actor
-        self.actor_path = actor_path
+    def __init__(self, folder: str, video_path: str):
+        self.folder = folder
+        self.video_path = video_path
 
     def filter_videos_without_audio(self):
         return list(
             filter(
-                lambda filename: splitext(filename)[0] not in [splitext(file)[0] for file in os.listdir(os.path.join(self.actor_path, "audio"))]
+                lambda filename: splitext(filename)[0] not in [splitext(file)[0] for file in os.listdir(os.path.join(self.video_path, "audio"))]
                 and (
                     "-001" in filename
                     or "-002" in filename
@@ -53,7 +53,7 @@ class SubtitleGenerator:
                     or "-19" in filename
                     or "-20" in filename
                 ),
-                os.listdir(self.actor_path),
+                os.listdir(self.video_path),
             )
         )
 
@@ -61,7 +61,7 @@ class SubtitleGenerator:
         return list(
             filter(
                 lambda filename: "-SUB" in filename or ".srt" in filename,
-                os.listdir(self.actor_path),
+                os.listdir(self.video_path),
             )
         )
 
@@ -71,7 +71,7 @@ class SubtitleGenerator:
         return list(
             filter(
                 lambda filename: splitext(filename)[0] not in [splitext(file)[0] for file in videos_with_subtitles],
-                os.listdir(self.actor_path),
+                os.listdir(self.video_path),
             )
         )
 
@@ -107,7 +107,7 @@ class SubtitleGenerator:
 
     def get_audio_paths(self) -> list[tuple[str, str, str]]:
         video_transcriber_params = []
-        OUTPUT_AUDIO_PATH = os.path.join(self.actor_path, "audio")
+        OUTPUT_AUDIO_PATH = os.path.join(self.video_path, "audio")
 
         audio_files = os.listdir(OUTPUT_AUDIO_PATH)
 
@@ -122,7 +122,7 @@ class SubtitleGenerator:
         for audio in audio_files:
             video_title = splitext(audio)[0]
             output_audio_path = os.path.join(OUTPUT_AUDIO_PATH, f"{video_title}.mp3")
-            output_srt_path = os.path.join(self.actor_path, video_title + ".srt")
+            output_srt_path = os.path.join(self.video_path, video_title + ".srt")
             video_transcriber_params.append((video_title, output_audio_path, output_srt_path))
 
         return video_transcriber_params
@@ -147,7 +147,7 @@ class SubtitleGenerator:
     def mp_extract_audio(self, cores: str, lock):
         video_transcriber_params = []
 
-        OUTPUT_AUDIO_PATH = os.path.join(self.actor_path, "audio")
+        OUTPUT_AUDIO_PATH = os.path.join(self.video_path, "audio")
         if not os.path.exists(OUTPUT_AUDIO_PATH):
             os.makedirs(OUTPUT_AUDIO_PATH, exist_ok=True, mode=0o777)
 
@@ -158,7 +158,7 @@ class SubtitleGenerator:
 
         for i, video in enumerate(video_files):
             video_title = splitext(video)[0]
-            video_path = os.path.join(self.actor_path, video)
+            video_path = os.path.join(self.video_path, video)
             output_audio_path = os.path.join(OUTPUT_AUDIO_PATH, f"{video_title}.mp3")
             video_transcriber_params.append((i, video_title, video_path, output_audio_path, lock))
 

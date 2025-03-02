@@ -11,9 +11,9 @@ logger = logging.getLogger("scene_detect_logger")
 
 
 class SceneDetect:
-    def __init__(self, actor: str, actor_path: str):
-        self.actor = actor
-        self.actor_path = actor_path
+    def __init__(self, folder: str, video_path: str):
+        self.folder = folder
+        self.video_path = video_path
 
     def split_video_exists(self, video: str) -> bool:
         """
@@ -26,7 +26,7 @@ class SceneDetect:
             bool: True if the split video exists, False otherwise.
         """
 
-        for existing_video in os.listdir(os.path.join(self.actor_path)):
+        for existing_video in os.listdir(os.path.join(self.video_path)):
             if ".mp4" in existing_video:
                 if (
                     video + "-001.mp4" == existing_video
@@ -49,14 +49,13 @@ class SceneDetect:
         Check if the video scene file exists
 
         Arguments:
-            actor {str} -- actor name
-            scene_name {str} -- scene name
+            video (str): The name of the video file.
 
         Returns:
             bool -- True if the scene file exists, False otherwise
         """
 
-        for scenes in os.listdir(os.path.join(self.actor_path, "scenes")):
+        for scenes in os.listdir(os.path.join(self.video_path, "scenes")):
             if splitext(video)[0] == splitext(scenes)[0]:
                 return True
 
@@ -132,7 +131,7 @@ class SceneDetect:
                     }
                 )
 
-        SCENES_PATH = os.path.join(self.actor_path, "scenes")
+        SCENES_PATH = os.path.join(self.video_path, "scenes")
 
         logger.info("Saving scene list for: " + os.path.join(SCENES_PATH, scene_name) + ".json")
 
@@ -152,7 +151,7 @@ class SceneDetect:
         Returns:
             list[tuple[FrameTimecode, FrameTimecode]]: A list of tuples representing the start and end timecodes of each scene.
         """
-        video_path = os.path.join(self.actor_path, video)
+        video_path = os.path.join(self.video_path, video)
 
         # Skip split videos
         if re.match(r".*-\d{0,3}\.mp4", video):
@@ -200,14 +199,14 @@ class SceneDetect:
         scene_list = self.serialize_scenes(scene_path)
         if len(scene_list) == 0:
             logger.info("No Scenes Found For: " + video_path)
-            os.rename(video_path, os.path.join(self.actor_path, video + "-001.mp4"))
+            os.rename(video_path, os.path.join(self.video_path, video + "-001.mp4"))
 
         try:
             logger.info("Splitting videos for: " + video_path)
             split_video_ffmpeg(
                 input_video_path=video_path,
                 scene_list=scene_list,
-                output_dir=os.path.join(self.actor_path),
+                output_dir=os.path.join(self.video_path),
                 output_file_template="$VIDEO_NAME-$SCENE_NUMBER.mp4",
                 video_name=Path(video_path).stem,
                 arg_override="-c:v h264_nvenc -preset slow -cq 18 -rc:v vbr -maxrate 5M -bufsize 10M -g 48 -r 30",

@@ -34,37 +34,37 @@ def worker_main():
         jobqueue.task_done()
 
 
-def load_actors():
-    actors = []
+def load_folders():
+    folders = []
     i = 1
     while True:
-        actor = os.environ.get(f"ACTOR_{i}")
-        if actor:
-            actors.append(actor)
+        folder = os.environ.get(f"FOLDER_{i}")
+        if folder:
+            folders.append(folder)
             i += 1
         else:
             break
 
-    return actors
+    return folders
 
 
 def main():
-    actors = load_actors()
+    folders = load_folders()
 
-    for actor in actors:
-        actor_path = os.path.join(VIDEO_CONTAINER_PATH, actor)
-        scene_detect = SceneDetect(actor, actor_path)
-        subtitle = SubtitleGenerator(actor, actor_path)
+    for folder in folders:
+        video_path = os.path.join(VIDEO_CONTAINER_PATH, folder)
+        scene_detect = SceneDetect(folder, video_path)
+        subtitle = SubtitleGenerator(folder, video_path)
 
         lock = multiprocessing.Manager().Lock()
 
-        if os.path.exists(actor_path):
-            scene_path = os.path.join(VIDEO_CONTAINER_PATH, actor, "scenes")
+        if os.path.exists(video_path):
+            scene_path = os.path.join(VIDEO_CONTAINER_PATH, folder, "scenes")
             if not os.path.exists(scene_path):
                 logger.info(f"Scene Directory {scene_path} created.")
                 os.makedirs(scene_path, exist_ok=True)
 
-            for video in os.listdir(actor_path):
+            for video in os.listdir(video_path):
                 if video.endswith(".mp4"):
                     scene_detect.extract_scenes(video)
 
@@ -72,11 +72,11 @@ def main():
                 if scene.endswith(".json"):
                     try:
                         scene_detect.split_scenes(
-                            os.path.join(VIDEO_CONTAINER_PATH, actor, "scenes", scene),
-                            os.path.join(VIDEO_CONTAINER_PATH, actor, splitext(scene)[0] + ".mp4"),
+                            os.path.join(VIDEO_CONTAINER_PATH, folder, "scenes", scene),
+                            os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4"),
                         )
 
-                        os.remove(os.path.join(VIDEO_CONTAINER_PATH, actor, splitext(scene)[0] + ".mp4"))
+                        os.remove(os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4"))
 
                     except Exception as e:
                         logger.error(f"Error splitting video: {e}")
@@ -85,7 +85,7 @@ def main():
             subtitle.mp_generate_subtitle(1)
 
         else:
-            logger.info(f"Actor path {actor_path} does not exist.")
+            logger.info(f"Video path: {video_path} does not exist.")
 
 
 jobqueue.put(main)
