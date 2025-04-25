@@ -11,7 +11,6 @@ from queue import Queue
 import schedule
 
 from scene_detect import SceneDetect
-from subtitle import SubtitleGenerator
 
 logger = logging.getLogger("scene_detect_logger")
 logger.propagate = False
@@ -54,9 +53,6 @@ def main():
     for folder in folders:
         video_path = os.path.join(VIDEO_CONTAINER_PATH, folder)
         scene_detect = SceneDetect(folder, video_path)
-        subtitle = SubtitleGenerator(folder, video_path)
-
-        lock = multiprocessing.Manager().Lock()
 
         if os.path.exists(video_path):
             scene_path = os.path.join(VIDEO_CONTAINER_PATH, folder, "scenes")
@@ -81,9 +77,6 @@ def main():
 
                     except Exception as e:
                         logger.error(f"Error splitting video: {e}")
-
-            subtitle.mp_extract_audio(1, lock)
-            subtitle.mp_generate_subtitle(1)
 
         else:
             logger.info(f"Video path: {video_path} does not exist.")
