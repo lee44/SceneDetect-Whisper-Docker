@@ -212,8 +212,6 @@ class SceneDetect:
                 arg_override="-c:v h264_nvenc -preset slow -cq 18 -rc:v vbr -maxrate 5M -bufsize 10M -g 48 -r 30",
                 show_progress=True,
                 show_output=False,
-                suppress_output=None,
-                hide_progress=None,
             )
 
         except Exception as e:

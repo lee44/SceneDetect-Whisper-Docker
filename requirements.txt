@@ -4,3 +4,4 @@ questionary
 opencv-python-headless
 tqdm
 schedule
+send2trash

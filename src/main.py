@@ -9,6 +9,7 @@ from posixpath import splitext
 from queue import Queue
 
 import schedule
+import send2trash
 
 from scene_detect import SceneDetect
 
@@ -72,14 +73,18 @@ def main():
                             os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4"),
                         )
 
-                        if os.path.getsize(os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4")) >= 25000:
-                            os.remove(os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4"))
+                        video_path = os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + "-001.mp4")
+                        video_size = os.path.getsize(video_path)
+                        if video_size < 25000:
+                            logger.info(f"Video {splitext(scene)[0]}-001.mp4 has a size of {video_size}, moving to trash.")
+                            # os.remove(video_path)
+                            send2trash.send2trash(video_path)
 
                     except Exception as e:
                         logger.error(f"Error splitting video: {e}")
 
-        else:
-            logger.info(f"Video path: {video_path} does not exist.")
+        # else:
+        #     logger.info(f"Video path: {video_path} does not exist.")
 
 
 jobqueue.put(main)
