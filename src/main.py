@@ -76,7 +76,8 @@ def main():
                             os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4"),
                         )
 
-                        os.remove(os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4"))
+                        if os.path.getsize(os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4")) >= 25000:
+                            os.remove(os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4"))
 
                     except Exception as e:
                         logger.error(f"Error splitting video: {e}")
