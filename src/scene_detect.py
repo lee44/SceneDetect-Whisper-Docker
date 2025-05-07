@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import time
 from os.path import splitext
 from pathlib import Path
 
@@ -15,6 +16,22 @@ class SceneDetect:
         self.folder = folder
         self.video_path = video_path
 
+    def is_file_downloading(self, filepath: str, interval=10, checks=3):
+        if not os.path.exists(filepath):
+            return False
+
+        last_size = os.path.getsize(filepath)
+        for _ in range(checks):
+            time.sleep(interval)
+            current_size = os.path.getsize(filepath)
+
+            if current_size != last_size:
+                return True  # File size changed, likely downloading
+
+            last_size = current_size
+
+        return False  # File size stable, likely finished
+
     def split_video_exists(self, video: str) -> bool:
         """
         Check if the split video exists.
@@ -27,20 +44,22 @@ class SceneDetect:
         """
 
         for existing_video in os.listdir(os.path.join(self.video_path)):
-            if ".mp4" in existing_video:
-                if (
-                    video + "-001.mp4" == existing_video
-                    or video + "-002.mp4" == existing_video
-                    or video + "-003.mp4" == existing_video
-                    or video + "-004.mp4" == existing_video
-                    or video + "-005.mp4" == existing_video
-                    or video + "-006.mp4" == existing_video
-                    or video + "-007.mp4" == existing_video
-                    or video + "-008.mp4" == existing_video
-                    or video + "-009.mp4" == existing_video
-                    or video + "-010.mp4" == existing_video
-                ):
-                    return True
+            if not existing_video.endswith(".mp4"):
+                continue
+
+            if (
+                video + "-001.mp4" == existing_video
+                or video + "-002.mp4" == existing_video
+                or video + "-003.mp4" == existing_video
+                or video + "-004.mp4" == existing_video
+                or video + "-005.mp4" == existing_video
+                or video + "-006.mp4" == existing_video
+                or video + "-007.mp4" == existing_video
+                or video + "-008.mp4" == existing_video
+                or video + "-009.mp4" == existing_video
+                or video + "-010.mp4" == existing_video
+            ):
+                return True
 
         return False
 
@@ -155,12 +174,17 @@ class SceneDetect:
 
         # Skip split videos
         if re.match(r".*-\d{0,3}\.mp4", video):
-            logger.info("Video already split: " + video_path)
+            # logger.info("Video already split: " + video_path)
             return
 
         # Skip if video scene exists
         if self.video_scene_exists(video):
-            logger.info("Video scene already exists: " + video_path)
+            # logger.info("Video scene already exists: " + video_path)
+            return
+
+        if self.is_file_downloading(video_path):
+            logger.info(f"File {video_path} is still downloading.")
+
             return
 
         try:
@@ -188,21 +212,25 @@ class SceneDetect:
         """
 
         if not os.path.exists(video_path):
-            logger.info("Video does not exist: " + video_path)
-            return
+            # logger.info("Video does not exist: " + video_path)
+            raise Exception(f"{video_path} does not exist")
 
         video = Path(video_path).stem
         if self.split_video_exists(video):
-            logger.info("Split video already exists for: " + video_path)
-            return
+            # logger.info("Split video already exists for: " + video_path)
+            raise Exception(f"{video_path} has already been split")
+
+        if self.is_file_downloading(video_path):
+            logger.info(f"File {video_path} is still downloading.")
 
         scene_list = self.serialize_scenes(scene_path)
         if len(scene_list) == 0:
-            logger.info("No Scenes Found For: " + video_path)
+            # logger.info("No Scenes Found For: " + video_path)
             os.rename(video_path, os.path.join(self.video_path, video + "-001.mp4"))
 
         try:
             logger.info("Splitting videos for: " + video_path)
+
             split_video_ffmpeg(
                 input_video_path=video_path,
                 scene_list=scene_list,
@@ -213,6 +241,8 @@ class SceneDetect:
                 show_progress=True,
                 show_output=False,
             )
+
+            logger.info("Splitting Video Completed")
 
         except Exception as e:
             raise e

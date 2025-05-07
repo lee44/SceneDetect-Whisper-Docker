@@ -4,4 +4,5 @@ questionary
 opencv-python-headless
 tqdm
 schedule
-send2trash
+ffmpeg
+psycopg2-binary
