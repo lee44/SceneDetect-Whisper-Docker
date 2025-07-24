@@ -1,7 +1,6 @@
-scenedetect==0.6.4
+scenedetect
 python-dotenv
-questionary
 opencv-python-headless
 tqdm
 schedule
-send2trash
+ffmpeg
