@@ -12,6 +12,7 @@ from queue import Queue
 
 import schedule
 
+from actresses import actresses
 from postgresql import PostgresSQL
 from scene_detect import SceneDetect
 
@@ -62,7 +63,7 @@ def load_folders():
         else:
             break
 
-    return folders
+    return actresses + folders
 
 
 def upsert_video_info(postgres: PostgresSQL, folder: str, video: str, video_split: bool = False):
@@ -128,9 +129,11 @@ def main():
                     upsert_video_info(postgres=postgres, folder=folder, video=splitext(scene)[0] + ".mp4", video_split=True)
 
                     scenes = scene_detect.serialize_scenes(scene_path=os.path.join(VIDEO_CONTAINER_PATH, folder, "scenes", scene))
-                    videos = list(filter(lambda x: x.endswith(".mp4") and splitext(scene)[0] in x, os.listdir(video_path)))
-
                     logger.info(f"Scenes({len(scenes)}): {scenes}")
+
+                    videos = list(
+                        filter(lambda x: x.endswith(".mp4") and splitext(scene)[0] in x, os.listdir(os.path.join(VIDEO_CONTAINER_PATH, folder)))
+                    )
                     logger.info(f"Videos({len(videos) - 1}): {videos}")
 
                     video_path = os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4")
@@ -141,7 +144,11 @@ def main():
                         if not os.path.exists(recycle_bin_path):
                             os.makedirs(recycle_bin_path, exist_ok=True)
 
-                        shutil.move(video_path, recycle_bin_path)
+                        try:
+                            shutil.move(video_path, recycle_bin_path)
+                        except Exception:
+                            logger.error(f"Failed to move {video_path} to trash. Deleting instead.")
+                            os.remove(video_path)
 
                 except Exception as e:
                     logger.error(f"Error: {e}")

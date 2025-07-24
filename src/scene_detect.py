@@ -47,18 +47,7 @@ class SceneDetect:
             if not existing_video.endswith(".mp4"):
                 continue
 
-            if (
-                video + "-001.mp4" == existing_video
-                or video + "-002.mp4" == existing_video
-                or video + "-003.mp4" == existing_video
-                or video + "-004.mp4" == existing_video
-                or video + "-005.mp4" == existing_video
-                or video + "-006.mp4" == existing_video
-                or video + "-007.mp4" == existing_video
-                or video + "-008.mp4" == existing_video
-                or video + "-009.mp4" == existing_video
-                or video + "-010.mp4" == existing_video
-            ):
+            if re.match(r".*-\d{0,3}\.mp4", video):
                 return True
 
         return False
@@ -113,8 +102,7 @@ class SceneDetect:
                             )
                         )
         except Exception as e:
-            # Raise a TypeError if the scene file is not valid
-            raise TypeError(f"Timecode format/type unrecognized for scene: {scene_path}\n{e}")
+            raise e
 
         return scenes
 
@@ -218,7 +206,8 @@ class SceneDetect:
         video = Path(video_path).stem
         if self.split_video_exists(video):
             # logger.info("Split video already exists for: " + video_path)
-            raise Exception(f"{video_path} has already been split")
+            # raise Exception(f"{video_path} has already been split")
+            return
 
         if self.is_file_downloading(video_path):
             logger.info(f"File {video_path} is still downloading.")
