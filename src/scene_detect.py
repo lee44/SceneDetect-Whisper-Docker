@@ -6,7 +6,7 @@ import time
 from os.path import splitext
 from pathlib import Path
 
-from scenedetect import FrameTimecode, ThresholdDetector, detect, split_video_ffmpeg
+from scenedetect import FrameTimecode, SceneManager, ThresholdDetector, detect, open_video, split_video_ffmpeg
 
 logger = logging.getLogger("scene_detect_logger")
 
@@ -186,9 +186,38 @@ class SceneDetect:
 
         try:
             logger.info("Extracting scenes for: " + video_path)
-            scene_list = detect(video_path, detector=ThresholdDetector(), show_progress=True)
-            if any(scene[1].get_seconds() - scene[0].get_seconds() > 3600 for scene in scene_list):
-                scene_list = detect(video_path, detector=ThresholdDetector(threshold=225, method=1), show_progress=True)
+
+            # A low threshold (e.g., 12) is common for black cuts.
+            # Pixel intensity is 0-255, so 12 is near black.
+            BLACK_THRESHOLD = 12
+            # A high threshold (e.g., 240) is for white cuts.
+            # 240 is near white (255 is pure white).
+            WHITE_THRESHOLD = 240
+            # Minimum length of a scene in frames (e.g., 15 frames at 30 FPS = 0.5s)
+            MIN_SCENE_LEN = 15
+
+            # --- Processing ---
+            # Open the video to get FrameTimecode objects
+            video = open_video(video_path)
+            scene_manager = SceneManager()
+
+            # --- 1. Detector for Black Cuts/Fades ---
+            # `ThresholdDetector.Method.FLOOR` detects when the average intensity
+            # falls below the threshold (i.e., cuts/fades to black).
+            black_detector = ThresholdDetector(threshold=BLACK_THRESHOLD, min_scene_len=MIN_SCENE_LEN, method=ThresholdDetector.Method.FLOOR)
+            scene_manager.add_detector(black_detector)
+
+            # --- 2. Detector for White Cuts/Fades ---
+            # `ThresholdDetector.Method.CEILING` detects when the average intensity
+            # rises above the threshold (i.e., cuts/fades to white).
+            white_detector = ThresholdDetector(threshold=WHITE_THRESHOLD, min_scene_len=MIN_SCENE_LEN, method=ThresholdDetector.Method.CEILING)
+            scene_manager.add_detector(white_detector)
+
+            # Process the video
+            scene_manager.detect_scenes(video, show_progress=True)
+
+            # Get the list of scenes (start and end FrameTimecode tuples)
+            scene_list = scene_manager.get_scene_list()
 
             path = Path(video_path)
             self.save_scene_list(path.stem, scene_list)
