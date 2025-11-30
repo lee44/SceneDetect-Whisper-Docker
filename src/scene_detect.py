@@ -48,7 +48,11 @@ class SceneDetect:
                 continue
 
             if re.match(r".*-\d{0,3}\.mp4", video):
-                return True
+                if "-RM" in video or "-SUB" in video:
+                    return True
+
+                if video.count("-") > 1:
+                    return True
 
         return False
 
@@ -162,8 +166,13 @@ class SceneDetect:
 
         # Skip split videos
         if re.match(r".*-\d{0,3}\.mp4", video):
-            # logger.info("Video already split: " + video_path)
-            return
+            if "-RM" in video or "-SUB" in video:
+                # logger.info("Video already split: " + video_path)
+                return
+
+            if video.count("-") > 1:
+                # logger.info("Video already split: " + video_path)
+                return
 
         # Skip if video scene exists
         if self.video_scene_exists(video):

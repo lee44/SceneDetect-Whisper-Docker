@@ -55,6 +55,7 @@ def worker_main():
 def load_folders():
     folders = []
     i = 1
+    
     while True:
         folder = os.environ.get(f"FOLDER_{i}")
         if folder:
