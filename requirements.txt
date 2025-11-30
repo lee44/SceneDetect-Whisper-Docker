@@ -6,3 +6,4 @@ tqdm
 schedule
 ffmpeg
 psycopg2-binary
+opencv-python

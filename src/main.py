@@ -55,7 +55,7 @@ def worker_main():
 def load_folders():
     folders = []
     i = 1
-    
+
     while True:
         folder = os.environ.get(f"FOLDER_{i}")
         if folder:
@@ -65,38 +65,6 @@ def load_folders():
             break
 
     return actresses + folders
-
-
-def upsert_video_info(postgres: PostgresSQL, folder: str, video: str, video_split: bool = False):
-    """
-    Upsert video information into the PostgreSQL database.
-    """
-    video_code = postgres.extract_video_code(video)
-    subtitles, uncensored = postgres.has_subtitles_uncensored(video)
-
-    try:
-        width, height = postgres.extract_video_resolution(os.path.join(VIDEO_CONTAINER_PATH, folder, video))
-    except Exception:
-        width, height = None, None
-
-    video_info = {
-        "actress": folder,
-        "video_code": video_code,
-        "subtitles": subtitles,
-        "uncensored": uncensored,
-        "width": width,
-        "height": height,
-        "opened": True,
-        "video_split": video_split,
-        "subtitle_created": True if splitext(video)[0] + ".srt" in os.listdir(os.path.join(VIDEO_CONTAINER_PATH, folder)) else False,
-        "deleted": False,
-    }
-
-    try:
-        postgres.upsert(video_info)
-
-    except Exception:
-        print(f"Failed to Upsert: {video_code}")
 
 
 def main():
@@ -127,8 +95,6 @@ def main():
                         video_path=os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4"),
                     )
 
-                    upsert_video_info(postgres=postgres, folder=folder, video=splitext(scene)[0] + ".mp4", video_split=True)
-
                     scenes = scene_detect.serialize_scenes(scene_path=os.path.join(VIDEO_CONTAINER_PATH, folder, "scenes", scene))
                     logger.info(f"Scenes({len(scenes)}): {scenes}")
 
@@ -137,25 +103,28 @@ def main():
                     )
                     logger.info(f"Videos({len(videos) - 1}): {videos}")
 
-                    video_path = os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4")
-                    if len(scenes) == len(videos) - 1:
-                        logger.info(f"Moving {video_path} to trash.")
+                    # video_path = os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4")
+                    # if len(scenes) == len(videos) - 1:
+                    #     logger.info(f"Moving {video_path} to trash.")
 
-                        recycle_bin_path = os.path.join(VIDEO_CONTAINER_PATH, ".Recycle.Bin", folder)
-                        if not os.path.exists(recycle_bin_path):
-                            os.makedirs(recycle_bin_path, exist_ok=True)
+                    #     recycle_bin_path = os.path.join(VIDEO_CONTAINER_PATH, ".Recycle.Bin", folder)
+                    #     if not os.path.exists(recycle_bin_path):
+                    #         os.makedirs(recycle_bin_path, exist_ok=True)
 
-                        try:
-                            shutil.move(video_path, recycle_bin_path)
-                        except Exception:
-                            logger.error(f"Failed to move {video_path} to trash. Deleting instead.")
-                            os.remove(video_path)
+                    #     try:
+                    #         shutil.move(video_path, recycle_bin_path)
+                    #     except Exception:
+                    #         logger.error(f"Failed to move {video_path} to trash. Deleting instead.")
+                    #         os.remove(video_path)
 
                 except Exception as e:
                     logger.error(f"Error: {e}")
 
         # else:
         #     logger.info(f"Video path: {video_path} does not exist.")
+
+    postgres.sync_files_with_database()
+    postgres.sync_database_with_files()
 
 
 jobqueue.put(main)

@@ -1,13 +1,13 @@
 import os
-import re
 from os.path import splitext
 
-import ffmpeg
 import psycopg2
 from psycopg2.extras import DictCursor
 from tqdm import tqdm
 
-SERVER_PATH = "\\\OLYMPUS\\videos"
+from utils import extract_video_code, extract_video_resolution_ffmpeg, extract_video_resolution_opencv, has_subtitles_uncensored, is_video_split
+
+SERVER_PATH = "\\\\OLYMPUS\\videos"
 DATABASE = "JAV"
 HOST = "192.168.1.111"
 USER = "postgres"
@@ -27,89 +27,6 @@ class PostgresSQL:
 
             return None
 
-    # Helper functions
-    def extract_video_resolution(self, video_path: str) -> tuple:
-        """
-        Extracts the video resolution from the video file.
-
-        Args:
-            video_path (str): The path to the video file.
-
-        Returns:
-            tuple: A tuple containing the width and height of the video resolution.
-        """
-        video_streams = ffmpeg.probe(video_path, select_streams="v")
-
-        return video_streams["streams"][0]["width"], video_streams["streams"][0]["height"]
-
-    def extract_video_code(self, video: str):
-        """
-        Extract the video code, excluding -RM, -SUB, and trailing -001, -002, etc from the video filename.
-
-        Args:
-            video (str): The name of the video file.
-
-        Returns:
-            str: The extracted video code.
-        """
-        # Remove the '.mp4' extension from the video name
-        video = video.replace(".mp4", "")
-
-        # Split the video name into parts using '-' as the delimiter
-        video_name_split = video.split("-")
-
-        # Check the length of the video name split
-        if len(video_name_split) == 4:
-            # If the length is 4, remove the last part of the video name
-            video = video[: video.rfind("-")]
-        elif len(video_name_split) == 3:
-            # If the length is 3, check if the video name contains '-SUB' or '-RM'
-            if "-SUB" not in video and "-RM" not in video:
-                # If it does not contain '-SUB' or '-RM', remove the last part of the video name
-                video = video[: video.rfind("-")]
-
-        # Return the extracted video code after removing leading and trailing whitespace
-        return video.replace("-RM", "").replace("-SUB", "").strip()
-
-    def has_subtitles_uncensored(self, video: str):
-        """
-        Check if the video has subtitles or uncensored.
-
-        Args:
-            video (str): The name of the video file.
-
-        Returns:
-            tuple: A tuple containing the subtitles status (bool) and uncensored status (bool).
-        """
-        # Initialize the subtitles and uncensored status as False
-        subtitles = False
-        uncensored = False
-
-        # Check if the video contains '-SUB'
-        if "-SUB" in video:
-            # If it does, set the subtitles status to True
-            subtitles = True
-        # Check if the video contains '-RM'
-        elif "-RM" in video:
-            # If it does, set the uncensored status to True
-            uncensored = True
-
-        # Return the subtitles and uncensored status as a tuple
-        return subtitles, uncensored
-
-    def is_video_split(self, video: str):
-        pattern = r"-0\d{2}"
-
-        return bool(re.search(pattern, video))
-
-    def is_video_deleted(self, actor: str, video: str):
-        videos = self.find_all(actor)
-        for vid in videos:
-            if video == vid["video_code"]:
-                return False
-
-        return True
-
     # Database I/O Functions
     def find(self, video_code: str):
         sql = """SELECT * FROM videos WHERE video_code = %s"""
@@ -121,11 +38,21 @@ class PostgresSQL:
         except (Exception, psycopg2.DatabaseError) as error:
             print(error)
 
-    def find_all(self, actor: str):
-        sql = """SELECT * FROM videos WHERE actress = %s"""
+    def find_all(self, actress: str):
+        sql = """SELECT * FROM videos WHERE actress = %s ORDER BY video_code ASC"""
         try:
             cursor = self.postgres_connection.cursor()
-            cursor.execute(sql, (actor,))
+            cursor.execute(sql, (actress,))
+
+            return cursor.fetchall()
+        except (Exception, psycopg2.DatabaseError) as error:
+            print(error)
+
+    def find_all_actresses(self):
+        sql = """SELECT DISTINCT actress FROM videos ORDER BY actress ASC"""
+        try:
+            cursor = self.postgres_connection.cursor()
+            cursor.execute(sql)
 
             return cursor.fetchall()
         except (Exception, psycopg2.DatabaseError) as error:
@@ -167,7 +94,7 @@ class PostgresSQL:
         Args:
             video_info (dict): A dictionary containing the video information.
         """
-        sql = """INSERT INTO videos (actress, video_code, subtitles, uncensored, width, height, opened, video_split, subtitle_created) VALUES (%(actress)s, %(video_code)s, %(subtitles)s, %(uncensored)s, %(width)s, %(height)s, %(opened)s, %(video_split)s, %(subtitle_created)s) ON CONFLICT (video_code) DO UPDATE SET subtitles = %(subtitles)s, uncensored = %(uncensored)s, width = %(width)s, height = %(height)s, opened = %(opened)s, video_split = %(video_split)s, subtitle_created = %(subtitle_created)s"""
+        sql = """INSERT INTO videos (actress, video_code, subtitles, uncensored, width, height, opened, video_split, subtitle_created, deleted, split_names) VALUES (%(actress)s, %(video_code)s, %(subtitles)s, %(uncensored)s, %(width)s, %(height)s, %(opened)s, %(video_split)s, %(subtitle_created)s, %(deleted)s , %(split_names)s) ON CONFLICT (video_code) DO UPDATE SET subtitles = %(subtitles)s, uncensored = %(uncensored)s, width = %(width)s, height = %(height)s, opened = %(opened)s, video_split = %(video_split)s, subtitle_created = %(subtitle_created)s, deleted = %(deleted)s , split_names = %(split_names)s"""
 
         try:
             # execute the SQL query
@@ -181,19 +108,19 @@ class PostgresSQL:
             self.postgres_connection.rollback()
 
     # Database Sync Functions
-    def update_video_resolutions(self, actor: str):
+    def update_video_resolutions(self, actress: str):
         """
         Updates the video resolutions in the PostgreSQL database.
 
         Args:
-            actor (str): The name of the actor.
+            actress (str): The name of the actress.
         """
-        for video in os.listdir(os.path.join(SERVER_PATH, actor)):
+        for video in os.listdir(os.path.join(SERVER_PATH, actress)):
             if video.endswith(".mp4"):
-                video_code = self.extract_video_code(video)
+                video_code = extract_video_code(video)
 
                 try:
-                    width, height = self.extract_video_resolution(os.path.join(SERVER_PATH, actor, video))
+                    width, height = extract_video_resolution_ffmpeg(os.path.join(SERVER_PATH, actress, video))
                 except Exception:
                     continue
 
@@ -208,52 +135,110 @@ class PostgresSQL:
                     }
                 )
 
-    def sync_database(self):
+    def sync_files_with_database(self, actress: str):
         """
-        Sync database with actor's videos.
+        Sync database with actress's videos.
         """
 
         video_code_set = set()
-        for actor in tqdm(os.listdir("actors"), desc="Actors", position=0, colour="green", leave=True):
-            actor_dir = list(filter(lambda video: video.endswith(".mp4"), os.listdir(os.path.join(SERVER_PATH, actor))))
-            for video in tqdm(actor_dir, desc=f"Syncing {actor}", position=1, colour="red", leave=False):
-                video_code = self.extract_video_code(video)
 
-                if video_code in video_code_set:
-                    continue
+        actress_videos = list(filter(lambda video: video.endswith(".mp4"), os.listdir(os.path.join(SERVER_PATH, actress))))
+        actress_subtitles = list(filter(lambda video: video.endswith(".srt"), os.listdir(os.path.join(SERVER_PATH, actress))))
+        for video in tqdm(actress_videos, desc=f"{actress}", position=1, colour="red", leave=False):
+            video_code = extract_video_code(video)
 
-                video_code_set.add(video_code)
+            if video_code in video_code_set:
+                continue
 
-                subtitles, uncensored = self.has_subtitles_uncensored(video)
+            video_code_set.add(video_code)
+
+            subtitles, uncensored = has_subtitles_uncensored(video)
+
+            try:
+                width, height = extract_video_resolution_ffmpeg(os.path.join(SERVER_PATH, actress, video))
+            except Exception:
                 try:
-                    width, height = self.extract_video_resolution(os.path.join(SERVER_PATH, actor, video))
+                    width, height = extract_video_resolution_opencv(os.path.join(SERVER_PATH, actress, video))
                 except Exception:
+                    print(f"Failed to get resolution for {video}")
                     width, height = None, None
                     continue
 
-                video_info = {
-                    "actress": actor,
-                    "video_code": video_code,
-                    "subtitles": subtitles,
-                    "uncensored": uncensored,
-                    "width": width,
-                    "height": height,
-                    "opened": True,
-                    "video_split": self.is_video_split(video),
-                    "subtitle_created": True if splitext(video)[0] + ".srt" in actor_dir else False,
-                    "deleted": self.is_video_deleted(actor, video_code),
-                }
+            split_names = [splitext(actress_video)[0] for actress_video in actress_videos if video_code in actress_video]
 
-                # print(video_info)
+            video_info = {
+                "actress": actress,
+                "video_code": video_code,
+                "subtitles": subtitles,
+                "uncensored": uncensored,
+                "width": width,
+                "height": height,
+                "opened": True,
+                "video_split": is_video_split(video),
+                "subtitle_created": True if splitext(video)[0] + ".srt" in actress_subtitles else False,
+                "deleted": False,
+                "split_names": split_names,
+            }
 
-                try:
-                    self.upsert(video_info)
-                    # print(f"Upserted: {video_code}")
-                except Exception:
-                    print(f"Failed to Upsert: {video_code}")
-                    continue
+            try:
+                self.upsert(video_info)
 
+            except Exception:
+                print(f"Failed to Upsert: {video_code}")
+                continue
 
-if __name__ == "__main__":
-    postgres = PostgresSQL()
-    postgres.sync_database()
+    def sync_database_with_files(self):
+        actresses = self.find_all_actresses()
+
+        for actress in tqdm(actresses, desc="Actresses", position=0, colour="green", leave=True):
+            videos_in_db = self.find_all(actress[0])
+
+            if not os.path.exists(os.path.join(SERVER_PATH, actress[0])):
+                for video in videos_in_db:
+                    video_info = {
+                        "actress": actress,
+                        "video_code": video["video_code"],
+                        "subtitles": video["subtitles"],
+                        "uncensored": video["uncensored"],
+                        "width": video["width"],
+                        "height": video["height"],
+                        "opened": video["opened"],
+                        "video_split": video["video_split"],
+                        "subtitle_created": video["subtitle_created"],
+                        "deleted": True,
+                        "split_names": None,
+                    }
+
+                    try:
+                        self.upsert(video_info)
+                        # print(f"Upserted: {video_code}")
+                    except Exception:
+                        print(f"Failed to Upsert: {video['video_code']}")
+                        continue
+
+                continue
+
+            videos_in_server = list(filter(lambda video: video.endswith(".mp4"), os.listdir(os.path.join(SERVER_PATH, actress[0]))))
+
+            for video in tqdm(videos_in_db, desc=f"Syncing {actress[0]}", position=1, colour="red", leave=False):
+                if video["video_code"] not in list(set(map(lambda video: extract_video_code(video), videos_in_server))):
+                    video_info = {
+                        "actress": actress,
+                        "video_code": video["video_code"],
+                        "subtitles": video["subtitles"],
+                        "uncensored": video["uncensored"],
+                        "width": video["width"],
+                        "height": video["height"],
+                        "opened": video["opened"],
+                        "video_split": video["video_split"],
+                        "subtitle_created": video["subtitle_created"],
+                        "deleted": True,
+                        "split_names": None,
+                    }
+
+                    try:
+                        self.upsert(video_info)
+                        # print(f"Upserted: {video_code}")
+                    except Exception:
+                        print(f"Failed to Upsert: {video['video_code']}")
+                        continue
