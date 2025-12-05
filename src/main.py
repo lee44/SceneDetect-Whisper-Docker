@@ -86,7 +86,14 @@ def main():
                     scene_detect.extract_scenes(video)
 
             for scene in os.listdir(scene_path):
-                if not os.path.exists(os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4")):
+                scenes = scene_detect.serialize_scenes(scene_path=os.path.join(VIDEO_CONTAINER_PATH, folder, "scenes", scene))
+
+                # If video does not exist OR any scene is longer than 1 hour OR 1 or less scenes are found inside scenes file, skip
+                if (
+                    not os.path.exists(os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4"))
+                    or any(map(lambda x: x >= 3600, map(lambda x: x[1].get_seconds() - x[0].get_seconds(), scenes)))
+                    or len(scenes) <= 1
+                ):
                     continue
 
                 try:
@@ -95,7 +102,6 @@ def main():
                         video_path=os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4"),
                     )
 
-                    scenes = scene_detect.serialize_scenes(scene_path=os.path.join(VIDEO_CONTAINER_PATH, folder, "scenes", scene))
                     logger.info(f"Scenes({len(scenes)}): {scenes}")
 
                     videos = list(
@@ -103,19 +109,19 @@ def main():
                     )
                     logger.info(f"Videos({len(videos) - 1}): {videos}")
 
-                    # video_path = os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4")
-                    # if len(scenes) == len(videos) - 1:
-                    #     logger.info(f"Moving {video_path} to trash.")
+                    video_path = os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4")
+                    if len(scenes) == len(videos) - 1:
+                        logger.info(f"Moving {video_path} to trash.")
 
-                    #     recycle_bin_path = os.path.join(VIDEO_CONTAINER_PATH, ".Recycle.Bin", folder)
-                    #     if not os.path.exists(recycle_bin_path):
-                    #         os.makedirs(recycle_bin_path, exist_ok=True)
+                        recycle_bin_path = os.path.join(VIDEO_CONTAINER_PATH, ".Recycle.Bin", folder)
+                        if not os.path.exists(recycle_bin_path):
+                            os.makedirs(recycle_bin_path, exist_ok=True)
 
-                    #     try:
-                    #         shutil.move(video_path, recycle_bin_path)
-                    #     except Exception:
-                    #         logger.error(f"Failed to move {video_path} to trash. Deleting instead.")
-                    #         os.remove(video_path)
+                        try:
+                            shutil.move(video_path, recycle_bin_path)
+                        except Exception:
+                            logger.error(f"Failed to move {video_path} to trash. Deleting instead.")
+                            os.remove(video_path)
 
                 except Exception as e:
                     logger.error(f"Error: {e}")
@@ -123,8 +129,8 @@ def main():
         # else:
         #     logger.info(f"Video path: {video_path} does not exist.")
 
-    postgres.sync_files_with_database()
-    postgres.sync_database_with_files()
+        postgres.sync_files_with_database(folder)
+        postgres.sync_database_with_files(folder)
 
 
 jobqueue.put(main)

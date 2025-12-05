@@ -187,58 +187,53 @@ class PostgresSQL:
                 print(f"Failed to Upsert: {video_code}")
                 continue
 
-    def sync_database_with_files(self):
-        actresses = self.find_all_actresses()
+    def sync_database_with_files(self, actress: str):
+        videos_in_db = self.find_all(actress)
 
-        for actress in tqdm(actresses, desc="Actresses", position=0, colour="green", leave=True):
-            videos_in_db = self.find_all(actress[0])
+        # If the actress directory does not exist, upsert all the videos as deleted
+        if not os.path.exists(os.path.join(SERVER_PATH, actress)):
+            for video in videos_in_db:
+                video_info = {
+                    "actress": actress,
+                    "video_code": video["video_code"],
+                    "subtitles": video["subtitles"],
+                    "uncensored": video["uncensored"],
+                    "width": video["width"],
+                    "height": video["height"],
+                    "opened": video["opened"],
+                    "video_split": video["video_split"],
+                    "subtitle_created": video["subtitle_created"],
+                    "deleted": True,
+                    "split_names": None,
+                }
 
-            if not os.path.exists(os.path.join(SERVER_PATH, actress[0])):
-                for video in videos_in_db:
-                    video_info = {
-                        "actress": actress,
-                        "video_code": video["video_code"],
-                        "subtitles": video["subtitles"],
-                        "uncensored": video["uncensored"],
-                        "width": video["width"],
-                        "height": video["height"],
-                        "opened": video["opened"],
-                        "video_split": video["video_split"],
-                        "subtitle_created": video["subtitle_created"],
-                        "deleted": True,
-                        "split_names": None,
-                    }
+                try:
+                    self.upsert(video_info)
+                    # print(f"Upserted: {video_code}")
+                except Exception:
+                    print(f"Failed to Upsert: {video['video_code']}")
+                    continue
 
-                    try:
-                        self.upsert(video_info)
-                        # print(f"Upserted: {video_code}")
-                    except Exception:
-                        print(f"Failed to Upsert: {video['video_code']}")
-                        continue
+        videos_in_server = list(filter(lambda video: video.endswith(".mp4"), os.listdir(os.path.join(SERVER_PATH, actress))))
+        for video in tqdm(videos_in_db, desc=f"Syncing {actress}", position=1, colour="red", leave=False):
+            if video["video_code"] not in list(set(map(lambda video: extract_video_code(video), videos_in_server))):
+                video_info = {
+                    "actress": actress,
+                    "video_code": video["video_code"],
+                    "subtitles": video["subtitles"],
+                    "uncensored": video["uncensored"],
+                    "width": video["width"],
+                    "height": video["height"],
+                    "opened": video["opened"],
+                    "video_split": video["video_split"],
+                    "subtitle_created": video["subtitle_created"],
+                    "deleted": True,
+                    "split_names": None,
+                }
 
-                continue
-
-            videos_in_server = list(filter(lambda video: video.endswith(".mp4"), os.listdir(os.path.join(SERVER_PATH, actress[0]))))
-
-            for video in tqdm(videos_in_db, desc=f"Syncing {actress[0]}", position=1, colour="red", leave=False):
-                if video["video_code"] not in list(set(map(lambda video: extract_video_code(video), videos_in_server))):
-                    video_info = {
-                        "actress": actress,
-                        "video_code": video["video_code"],
-                        "subtitles": video["subtitles"],
-                        "uncensored": video["uncensored"],
-                        "width": video["width"],
-                        "height": video["height"],
-                        "opened": video["opened"],
-                        "video_split": video["video_split"],
-                        "subtitle_created": video["subtitle_created"],
-                        "deleted": True,
-                        "split_names": None,
-                    }
-
-                    try:
-                        self.upsert(video_info)
-                        # print(f"Upserted: {video_code}")
-                    except Exception:
-                        print(f"Failed to Upsert: {video['video_code']}")
-                        continue
+                try:
+                    self.upsert(video_info)
+                    # print(f"Upserted: {video_code}")
+                except Exception:
+                    print(f"Failed to Upsert: {video['video_code']}")
+                    continue
