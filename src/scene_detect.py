@@ -147,7 +147,7 @@ class SceneDetect:
         logger.info("Saving scene list for: " + os.path.join(SCENES_PATH, scene_name) + ".json")
 
         with open(os.path.join(SCENES_PATH, scene_name) + ".json", "w+") as outfile:
-            json.dump(serializable_scene_list, outfile)
+            json.dump(serializable_scene_list, outfile, indent=4)
 
         os.chmod(os.path.join(SCENES_PATH, scene_name) + ".json", 0o777)
 

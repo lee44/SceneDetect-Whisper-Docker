@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from utils import extract_video_code, extract_video_resolution_ffmpeg, extract_video_resolution_opencv, has_subtitles_uncensored, is_video_split
 
-SERVER_PATH = "\\\\OLYMPUS\\videos"
+SERVER_PATH = "/videos"
 DATABASE = "JAV"
 HOST = "192.168.1.111"
 USER = "postgres"
