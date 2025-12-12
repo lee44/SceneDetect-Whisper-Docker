@@ -239,37 +239,46 @@ class SceneDetect:
 
         if not os.path.exists(video_path):
             # logger.info("Video does not exist: " + video_path)
-            raise Exception(f"{video_path} does not exist")
+            return 0
 
         video = Path(video_path).stem
         if self.split_video_exists(video):
             # logger.info("Split video already exists for: " + video_path)
-            # raise Exception(f"{video_path} has already been split")
-            return
+            return 0
 
         if self.is_file_downloading(video_path):
             logger.info(f"File {video_path} is still downloading.")
+            return 0
 
         scene_list = self.serialize_scenes(scene_path)
-        if len(scene_list) == 0:
+        if len(scene_list) <= 1:
             # logger.info("No Scenes Found For: " + video_path)
-            os.rename(video_path, os.path.join(self.video_path, video + "-001.mp4"))
+            return 0
+
+        if any(map(lambda x: x >= 5400, map(lambda x: x[1].get_seconds() - x[0].get_seconds(), scene_list))):
+            logger.info("Scene too long for: " + video_path)
+            return 0
 
         try:
             logger.info("Splitting videos for: " + video_path)
 
-            split_video_ffmpeg(
+            return_code = split_video_ffmpeg(
                 input_video_path=video_path,
                 scene_list=scene_list,
                 output_dir=os.path.join(self.video_path),
                 output_file_template="$VIDEO_NAME-$SCENE_NUMBER.mp4",
                 video_name=Path(video_path).stem,
-                arg_override="-c:v h264_nvenc -preset slow -cq 18 -rc:v vbr -maxrate 5M -bufsize 10M -g 48 -r 30",
+                arg_override="-c:v h264_nvenc -preset p6 -cq 22 -g 48 -r 30",
                 show_progress=True,
                 show_output=False,
             )
 
+            if return_code != 0:
+                raise Exception("Splitting Video Failed. GPU might be not available.")
+
             logger.info("Splitting Video Completed")
+
+            return 1
 
         except Exception as e:
             raise e

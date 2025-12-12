@@ -144,7 +144,7 @@ class PostgresSQL:
 
         actress_videos = list(filter(lambda video: video.endswith(".mp4"), os.listdir(os.path.join(SERVER_PATH, actress))))
         actress_subtitles = list(filter(lambda video: video.endswith(".srt"), os.listdir(os.path.join(SERVER_PATH, actress))))
-        for video in tqdm(actress_videos, desc=f"{actress}", position=1, colour="red", leave=False):
+        for video in tqdm(actress_videos, desc=f"{actress}", colour="green", leave=True):
             video_code = extract_video_code(video)
 
             if video_code in video_code_set:
@@ -215,7 +215,7 @@ class PostgresSQL:
                     continue
 
         videos_in_server = list(filter(lambda video: video.endswith(".mp4"), os.listdir(os.path.join(SERVER_PATH, actress))))
-        for video in tqdm(videos_in_db, desc=f"Syncing {actress}", position=1, colour="red", leave=False):
+        for video in tqdm(videos_in_db, desc=f"{actress}", colour="green", leave=True):
             if video["video_code"] not in list(set(map(lambda video: extract_video_code(video), videos_in_server))):
                 video_info = {
                     "actress": actress,
@@ -237,3 +237,122 @@ class PostgresSQL:
                 except Exception:
                     print(f"Failed to Upsert: {video['video_code']}")
                     continue
+
+    def sync_database(self, actress: str):
+        """
+        Sync the videos in the PostgreSQL database with the videos in the server directory.
+
+        Args:
+            actress (str): The name of the actress.
+        """
+        # Find all videos in the database for the given actress
+        actress_videos_in_db = self.find_all(actress)
+
+        # If the actress directory does not exist, upsert all the videos as deleted
+        if not os.path.exists(os.path.join(SERVER_PATH, actress)):
+            # Iterate through all the videos in the database for the given actress
+            for video in actress_videos_in_db:
+                # Create a dictionary with the video information
+                video_info = {
+                    "actress": actress,
+                    "video_code": video["video_code"],
+                    "subtitles": video["subtitles"],
+                    "uncensored": video["uncensored"],
+                    "width": video["width"],
+                    "height": video["height"],
+                    "opened": video["opened"],
+                    "video_split": video["video_split"],
+                    "subtitle_created": video["subtitle_created"],
+                    "deleted": True,
+                    "split_names": None,
+                }
+
+                try:
+                    # Upsert the video information into the database
+                    self.upsert(video_info)
+                except Exception:
+                    print(f"Failed to upsert: {video['video_code']}")
+                    continue
+
+            return
+
+        # Find all videos in the server directory for the given actress
+        actress_videos_in_dir = [extract_video_code(video) for video in os.listdir(os.path.join(SERVER_PATH, actress)) if video.endswith(".mp4")]
+
+        # Find all subtitles in the server directory for the given actress
+        actress_subtitles_in_dir = list(filter(lambda video: video.endswith(".srt"), os.listdir(os.path.join(SERVER_PATH, actress))))
+
+        # Find all unique videos by combining the videos in the database and the videos in the server directory
+        unique_videos = set(actress_videos_in_dir + [video["video_code"] for video in actress_videos_in_db])
+
+        # Iterate through all the unique videos
+        for video in tqdm(unique_videos, desc=f"Syncing {actress}", position=1, colour="green", leave=True):
+            # If the video is not in the server directory, upsert it as deleted
+            if video not in actress_videos_in_dir:
+                video_record = next((v for v in actress_videos_in_db if v["video_code"] == video), None)
+                if video_record is None:
+                    continue
+
+                video_info = {
+                    "actress": actress,
+                    "video_code": video,
+                    "subtitles": video_record["subtitles"],
+                    "uncensored": video_record["uncensored"],
+                    "width": video_record["width"],
+                    "height": video_record["height"],
+                    "opened": video_record["opened"],
+                    "video_split": video_record["video_split"],
+                    "subtitle_created": video_record["subtitle_created"],
+                    "deleted": True,
+                    "split_names": None,
+                }
+
+            else:
+                first_video_of_group = next((v for v in os.listdir(os.path.join(SERVER_PATH, actress)) if video in v and v.endswith(".mp4")), None)
+                if first_video_of_group is None:
+                    continue
+
+                # Detect subtitles and uncensored status from the filename
+                subtitles, uncensored = has_subtitles_uncensored(first_video_of_group)
+
+                try:
+                    # Extract the video resolution using ffmpeg
+                    width, height = extract_video_resolution_ffmpeg(os.path.join(SERVER_PATH, actress, first_video_of_group))
+                except Exception:
+                    try:
+                        # Extract the video resolution using OpenCV
+                        width, height = extract_video_resolution_opencv(
+                            os.path.join(
+                                SERVER_PATH,
+                                actress,
+                                first_video_of_group,
+                            )
+                        )
+                    except Exception:
+                        print(f"Failed to get resolution for {video}")
+                        width, height = None, None
+                        continue
+
+                # Find all split names for the video
+                split_names = [splitext(v)[0] for v in os.listdir(os.path.join(SERVER_PATH, actress)) if video in v and v.endswith(".mp4")]
+
+                video_info = {
+                    "actress": actress,
+                    "video_code": video,
+                    "subtitles": subtitles,
+                    "uncensored": uncensored,
+                    "width": width,
+                    "height": height,
+                    "opened": True,
+                    "video_split": is_video_split(first_video_of_group),
+                    "subtitle_created": True if first_video_of_group.replace(".mp4", "") + ".srt" in actress_subtitles_in_dir else False,
+                    "deleted": False,
+                    "split_names": split_names,
+                }
+
+            try:
+                # Upsert the video information into the database
+                self.upsert(video_info)
+            except Exception:
+                print(f"Failed to upsert: {video}")
+                continue

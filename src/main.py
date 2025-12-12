@@ -86,21 +86,20 @@ def main():
                     scene_detect.extract_scenes(video)
 
             for scene in os.listdir(scene_path):
-                scenes = scene_detect.serialize_scenes(scene_path=os.path.join(VIDEO_CONTAINER_PATH, folder, "scenes", scene))
-
-                # If video does not exist OR any scene is longer than 1 hour OR 1 or less scenes are found inside scenes file, skip
-                if (
-                    not os.path.exists(os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4"))
-                    or any(map(lambda x: x >= 3600, map(lambda x: x[1].get_seconds() - x[0].get_seconds(), scenes)))
-                    or len(scenes) <= 1
-                ):
-                    continue
-
                 try:
-                    scene_detect.split_scenes(
+                    try:
+                        scenes = scene_detect.serialize_scenes(scene_path=os.path.join(VIDEO_CONTAINER_PATH, folder, "scenes", scene))
+                    except Exception as e:
+                        logger.error(f"Error with file: {os.path.join(VIDEO_CONTAINER_PATH, folder, 'scenes', scene)}")
+                        raise e
+
+                    result_code = scene_detect.split_scenes(
                         scene_path=os.path.join(VIDEO_CONTAINER_PATH, folder, "scenes", scene),
                         video_path=os.path.join(VIDEO_CONTAINER_PATH, folder, splitext(scene)[0] + ".mp4"),
                     )
+
+                    if not result_code:
+                        continue
 
                     logger.info(f"Scenes({len(scenes)}): {scenes}")
 
@@ -124,13 +123,17 @@ def main():
                             os.remove(video_path)
 
                 except Exception as e:
-                    logger.error(f"Error: {e}")
+                    logger.error(f"Error Message: {e}")
 
-        # else:
-        #     logger.info(f"Video path: {video_path} does not exist.")
+            # else:
+            #     logger.info(f"Video path: {video_path} does not exist.")
 
-        postgres.sync_files_with_database(folder)
-        postgres.sync_database_with_files(folder)
+        try:
+            postgres.sync_database(folder)
+            # postgres.sync_files_with_database(folder)
+            # postgres.sync_database_with_files(folder)
+        except Exception as e:
+            logger.error(f"Error: {e}")
 
 
 jobqueue.put(main)
