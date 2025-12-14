@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from os.path import splitext
 
 import psycopg2
@@ -169,13 +170,11 @@ class PostgresSQL:
             video_info = {
                 "actress": actress,
                 "video_code": video_code,
-                "subtitles": subtitles,
+                "subtitled": subtitles,
                 "uncensored": uncensored,
                 "width": width,
                 "height": height,
                 "opened": True,
-                "video_split": is_video_split(video),
-                "subtitle_created": True if splitext(video)[0] + ".srt" in actress_subtitles else False,
                 "deleted": False,
                 "split_names": split_names,
             }
@@ -196,13 +195,11 @@ class PostgresSQL:
                 video_info = {
                     "actress": actress,
                     "video_code": video["video_code"],
-                    "subtitles": video["subtitles"],
+                    "subtitled": video["subtitled"],
                     "uncensored": video["uncensored"],
                     "width": video["width"],
                     "height": video["height"],
                     "opened": video["opened"],
-                    "video_split": video["video_split"],
-                    "subtitle_created": video["subtitle_created"],
                     "deleted": True,
                     "split_names": None,
                 }
@@ -220,13 +217,11 @@ class PostgresSQL:
                 video_info = {
                     "actress": actress,
                     "video_code": video["video_code"],
-                    "subtitles": video["subtitles"],
+                    "subtitled": video["subtitled"],
                     "uncensored": video["uncensored"],
                     "width": video["width"],
                     "height": video["height"],
                     "opened": video["opened"],
-                    "video_split": video["video_split"],
-                    "subtitle_created": video["subtitle_created"],
                     "deleted": True,
                     "split_names": None,
                 }
@@ -256,15 +251,14 @@ class PostgresSQL:
                 video_info = {
                     "actress": actress,
                     "video_code": video["video_code"],
-                    "subtitles": video["subtitles"],
+                    "subtitled": video["subtitled"],
                     "uncensored": video["uncensored"],
                     "width": video["width"],
                     "height": video["height"],
                     "opened": video["opened"],
-                    "video_split": video["video_split"],
-                    "subtitle_created": video["subtitle_created"],
                     "deleted": True,
                     "split_names": None,
+                    "updated_at": datetime.now(tz=timezone.utc),
                 }
 
                 try:
@@ -296,15 +290,14 @@ class PostgresSQL:
                 video_info = {
                     "actress": actress,
                     "video_code": video,
-                    "subtitles": video_record["subtitles"],
+                    "subtitled": video_record["subtitled"],
                     "uncensored": video_record["uncensored"],
                     "width": video_record["width"],
                     "height": video_record["height"],
                     "opened": video_record["opened"],
-                    "video_split": video_record["video_split"],
-                    "subtitle_created": video_record["subtitle_created"],
                     "deleted": True,
                     "split_names": None,
+                    "updated_at": datetime.now(tz=timezone.utc),
                 }
 
             else:
@@ -339,15 +332,14 @@ class PostgresSQL:
                 video_info = {
                     "actress": actress,
                     "video_code": video,
-                    "subtitles": subtitles,
+                    "subtitled": subtitles,
                     "uncensored": uncensored,
                     "width": width,
                     "height": height,
                     "opened": True,
-                    "video_split": is_video_split(first_video_of_group),
-                    "subtitle_created": True if first_video_of_group.replace(".mp4", "") + ".srt" in actress_subtitles_in_dir else False,
                     "deleted": False,
                     "split_names": split_names,
+                    "updated_at": datetime.now(tz=timezone.utc),
                 }
 
             try:
